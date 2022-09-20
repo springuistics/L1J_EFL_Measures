@@ -5,7 +5,6 @@ import re
 from collections import Counter
 from pathlib import Path
 
-
 def safe_division(x, y):
     """
     Safely divide numbers; i.e., give a score of 0 if numerator or denominator is 0
@@ -304,12 +303,50 @@ def process_syn(tag, dep, w):
 
     return {'W': w, 'MLS': mls, 'MLT': mlt, 'C_T': c_t, 'VP_T': vp_t, 'CO_T': co_t, 'DC_T': dc_t, 'CSTR_S': CSTR_s, 'CSTR_T': CSTR_t}
 
+def process_phrase(spacy_tags, spacy_deps, spacy_pos):
+    """
+    Creates phrasal complexity measurs based on Kyle 2016 and Kyle & Crossley 2018.
+    Though Kyle & Crossley (etc) offer a lot of measures, this program just focuses on ones that are indicative of
+    L2 proficiency, as per (forthcoming paper)
+    :param spacy_tags:
+    :param spacy_deps:
+    :return:
+    """
+    nom_deps = 0
+    NN = 0
+    pobj = 0
+    s = 0
+
+    for i in range(0, len(spacy_deps)):
+        tag = spacy_tags[i]
+        dep = spacy_ceps[i]
+        pos = spacy_pos[i]
+
+        if tag in ["NN", "NNP", "NNPS", "NNS"]:
+            NN += 1
+            if dep[0] == "n":
+                nom_deps += 1
+
+        if dep == "pobj":
+            pobj += 1
+
+        if dep == "ROOT":
+            s += 1
+
+    av_nom_deps_NN = safe_division(nom_deps, NN)
+    Pobj_NN = safe_division(pobj, NN)
+    Pobj_NN_s = safe_division(Pobj_NN, s)
+
+    return {'PC1': av_nom_deps_NN, 'PC2': Pobj_NN_s}
+
+
+
 
 def get_score(spacy_output, wordranks):
     """
     Splits SpaCy into relevant elements and utilizes SDM counts and wordranks to create scores.
     Scores come from a culmination of Lu 2010, 2012, Spring 2023, and Kyle and Crossley 2018
-    Only scores that are relevant for a large majority of L1 Japanese EFL learenrs are selected from the above
+    Only scores that are relevant for a large majority of L1 Japanese EFL learners are selected from the above
     (see forthcoming paper)
     :param spacy_output:
     :param wordranks:
@@ -321,6 +358,7 @@ def get_score(spacy_output, wordranks):
     spacy_tags = []
     spacy_deps = []
     spacy_stop = []
+
     for idx, token in enumerate(spacy_output):
         spacy_words.append(spacy_output[idx].text)
         spacy_lemmas.append(spacy_output[idx].lemma_)
@@ -332,9 +370,9 @@ def get_score(spacy_output, wordranks):
     word_count = len([token for token in spacy_output if
                       token.is_alpha or token.shape_ == 'dd'])  # dd is spacy's definition for digits.
 
-    lexical_results = process_lex(spacy_words, spacy_lemmas, spacy_pos, spacy_stop, wordranks)
+    lexical_results = process_lex(spacy_words, spacy_lemmas, spacy_tags, spacy_stop, wordranks)
     SDM_results = process_sdm(spacy_words, spacy_deps, word_count)
-    phrasal_results = process_phrase(spacy_tags, spacy_deps)
+    phrasal_results = process_phrase(spacy_tags, spacy_deps, spacy_pos)
     trad_synt_results = process_syn(spacy_tags, spacy_deps, word_count)
 
     return {lexical_results, SDM_results, phrasal_results, trad_synt_results}
@@ -425,6 +463,65 @@ def process(file_path: str, wordranks):
         return results
 
 
+def write_header_and_data_to_file(header, data, output_filename):
+    """
+
+    :type header - a string.
+    :param header:
+    :type data - list of strings.
+    :param data:
+    :param output_filename:
+    :return:
+    """
+    assert Path(output_filename).parent.is_dir(), f'The directory: {Path(output_filename).parent.absolute()} does ' \
+                                                  f'not exist. Cannot create output file. Please create the above ' \
+                                                  f'directory, or choose another file location.'
+    with open(output_filename, 'w', encoding='utf8', newline='') as output_file:
+        output_file.write(header)
+        for d in data:
+            output_file.write(d)
+    logger.info(f'{len(data)} lines of output written to: {output_filename}.')
+
+def build_header(scores):
+    header = ''
+    for key in scores[0]:
+        for k in scores[0][key].keys():
+            header += f'{k},'
+    header += '\n'
+    return header
+
+
+def stringify_scores(scores):
+    """
+    Scores array is a list of dictionaries
+    Format:
+    [{'filename': filename, 'scores': spacy_scores, 'syntax': spacy_syntax_results},...]
+
+    :param scores:
+    :return:
+    """
+    string_scores = ''
+    for sc in scores:
+        for key in sc.keys():
+            for v in sc[key].values():
+                string_scores += f'{v},'
+        string_scores += '\n'
+    return string_scores
+
+
+def list_stringify_scores(scores):
+    string_scores_list = []
+
+    for sc in scores:
+        string_score = ''
+        for key in sc.keys():
+            for v in sc[key].values():
+                string_score += f'{v},'
+        string_score += '\n'
+        string_scores_list.append(string_score)
+    return string_scores_list
+
+
 def main_files(input_path):
     input_filepath = os.path.join(os.getcwd(), input_path)
     wordranks = read_coca_frequent_data()
@@ -438,7 +535,7 @@ def main_files(input_path):
         header = build_header(scores)
         string_scores = list_stringify_scores(scores)
         write_header_and_data_to_file(header, string_scores, os.path.join(os.getcwd(),
-                                                                          f'./output/spacy_full_out_{len(scores)}.csv'))
+                                                                          f'./output/L1J_EFL_Scores_{len(scores)}.csv'))
 
 
 if __name__ == '__main__':
