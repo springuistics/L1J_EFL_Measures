@@ -50,7 +50,7 @@ def process_lex(words, lemmas, pos, stop, wordranks):
         pos_item = pos[i]
         lemma = lemmas[i]
 
-        if pos_item not in ["PUNCT", "SYM", "X", "SPACE"]:
+        if pos_item not in ["PUNCT", "SYM", "X", "SPACE", ".", ",", "!", "?", ":", ";", "-", " ", "¥n"]:
             if lemma not in lemmalist:
                 wordtypes += 1
                 wordtokens += 1
@@ -70,6 +70,8 @@ def process_lex(words, lemmas, pos, stop, wordranks):
                         sverbtypes += 1
                         sverbtokens += 1
 
+                lemmalist.append(lemma)
+
             else:
                 wordtokens += 1
                 if pos_item[0] in ["N", "J", "R", "V"]:
@@ -83,9 +85,12 @@ def process_lex(words, lemmas, pos, stop, wordranks):
                     if pos_item[0] == "V":
                         sverbtokens += 1
 
-                lemmalist.append(lemma)
 
-    LS = safe_division(slextokens, lextokens)
+    if words == []:
+        LS = 'error - file could not be read!'
+    else:
+        LS = safe_division(slextokens, lextokens)
+
     VS = safe_division((sverbtypes ** 2), verbtokens)
     CVS = safe_division(sverbtypes, ((2 * verbtokens) ** 0.5))
     NDW = wordtypes
@@ -145,7 +150,8 @@ def process_sdm(spacy_words, spacy_deps, word_count):
         n4.append(temp)
 
     for entry in spacy_words:
-        if entry in ac1:
+        entry2 = entry.lower()
+        if entry2 in ac1:
             count += 1
 
     for entry in n2:
@@ -161,7 +167,11 @@ def process_sdm(spacy_words, spacy_deps, word_count):
             count += 1
 
     count_dict = dict(Counter(spacy_deps))
-    s = count_dict['ROOT']
+
+    try:
+        s = count_dict['ROOT']
+    except KeyError:
+        s = 0
 
     try:
         nsubj = count_dict['nsubj']
@@ -194,7 +204,11 @@ def process_sdm(spacy_words, spacy_deps, word_count):
 
 def process_syn(tag, dep, w):
     count_dict = dict(Counter(dep))
-    s = count_dict['ROOT']
+
+    try:
+        s = count_dict['ROOT']
+    except KeyError:
+        s = 0
 
     try:
         nsubj = count_dict['nsubj']
@@ -343,7 +357,7 @@ def process_phrase(spacy_tags, spacy_deps, spacy_pos):
 
 
 
-def get_scores(spacy_output, wordranks):
+def get_scores(filename, spacy_output, wordranks):
     """
     Splits SpaCy into relevant elements and utilizes SDM counts and wordranks to create scores.
     Scores come from a culmination of Lu 2010, 2012, Spring 2023, and Kyle and Crossley 2018
@@ -375,8 +389,9 @@ def get_scores(spacy_output, wordranks):
     SDM_results = process_sdm(spacy_words, spacy_deps, word_count)
     phrasal_results = process_phrase(spacy_tags, spacy_deps, spacy_pos)
     trad_synt_results = process_syn(spacy_tags, spacy_deps, word_count)
+    filename_res = {'filename': filename}
 
-    return {'lex_res': lexical_results, 'SDM_res': SDM_results, 'phr_res': phrasal_results, 'syn_res': trad_synt_results}
+    return {'filename': filename_res, 'lex_res': lexical_results, 'SDM_res': SDM_results, 'phr_res': phrasal_results, 'syn_res': trad_synt_results}
 
 
 def write_header_and_data_to_file(header, data, output_filename):
@@ -437,13 +452,13 @@ def read_input_text(filename):
             logger.info(f'Read file: {filename} - {len(text_lines)} lines read.')
     except:
         text_lines = 'unrecognized characters in file - unable to process'
-        logger.info('file could not be read due to unrecognized characters.')
+        logger.warning(f'Filename:{filename} could not be read. Returning empty read-lines.')
 
     finally:
         return text_lines
 
 
-def process(file_path: str, wordranks):
+def process(file_path: str, filename, wordranks):
     """
     Simply preps files by sending files to get read and handling encoding errors.
     Also gets singular analysis from SpaCy, then sends to a score getter.
@@ -455,12 +470,13 @@ def process(file_path: str, wordranks):
     text_lines = read_input_text(file_path)
     input_text = ''.join(text_lines)
 
-    if input_text == 'file could not be read due to unrecognized characters.':
-        return input_text
+    if input_text == 'unrecognized characters in file - unable to process':
+        results = get_scores(filename, "", wordranks)
+        return results
     else:
         nlp = spacy.load("en_core_web_lg")
         analysis = nlp(input_text)
-        results = get_scores(analysis, wordranks)
+        results = get_scores(filename, analysis, wordranks)
         return results
 
 
@@ -530,7 +546,7 @@ def main(input_path):
     scores = []
     for fdx, filename in enumerate(os.listdir(input_filepath)):
         if filename.endswith('.txt'):
-            result = process(os.path.join(input_filepath, filename), wordranks)
+            result = process(os.path.join(input_filepath, filename), filename, wordranks)
             scores.append(result)
 
 
