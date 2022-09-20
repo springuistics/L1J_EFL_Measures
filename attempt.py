@@ -4,6 +4,10 @@ import spacy
 import re
 from collections import Counter
 from pathlib import Path
+import logging
+import csv
+
+logger = logging.getLogger('L1J_EFL_Measures')
 
 def safe_division(x, y):
     """
@@ -42,11 +46,11 @@ def process_lex(words, lemmas, pos, stop, wordranks):
     slextokens = 0
     slextypes = 0
 
-    for i in range(0, len(spacy_words)):
+    for i in range(0, len(words)):
         pos_item = pos[i]
         lemma = lemmas[i]
 
-        if pos_item not in string.punctuation and pos_item != "SYM":
+        if pos_item not in ["PUNCT", "SYM", "X", "SPACE"]:
             if lemma not in lemmalist:
                 wordtypes += 1
                 wordtokens += 1
@@ -80,7 +84,6 @@ def process_lex(words, lemmas, pos, stop, wordranks):
                         sverbtokens += 1
 
                 lemmalist.append(lemma)
-                lemmaposlist.append(pos_item)
 
     LS = safe_division(slextokens, lextokens)
     VS = safe_division((sverbtypes ** 2), verbtokens)
@@ -319,7 +322,7 @@ def process_phrase(spacy_tags, spacy_deps, spacy_pos):
 
     for i in range(0, len(spacy_deps)):
         tag = spacy_tags[i]
-        dep = spacy_ceps[i]
+        dep = spacy_deps[i]
         pos = spacy_pos[i]
 
         if tag in ["NN", "NNP", "NNPS", "NNS"]:
@@ -342,7 +345,7 @@ def process_phrase(spacy_tags, spacy_deps, spacy_pos):
 
 
 
-def get_score(spacy_output, wordranks):
+def get_scores(spacy_output, wordranks):
     """
     Splits SpaCy into relevant elements and utilizes SDM counts and wordranks to create scores.
     Scores come from a culmination of Lu 2010, 2012, Spring 2023, and Kyle and Crossley 2018
