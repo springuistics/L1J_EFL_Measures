@@ -318,7 +318,7 @@ def process_syn(tag, dep, w):
 
     return {'W': w, 'MLS': mls, 'MLT': mlt, 'C_T': c_t, 'VP_T': vp_t, 'CO_T': co_t, 'DC_T': dc_t, 'CSTR_S': CSTR_s, 'CSTR_T': CSTR_t}
 
-def process_phrase(spacy_tags, spacy_deps, spacy_pos):
+def process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words):
     """
     Creates phrasal complexity measurs based on Kyle 2016 and Kyle & Crossley 2018.
     Though Kyle & Crossley (etc) offer a lot of measures, this program just focuses on ones that are indicative of
@@ -327,32 +327,71 @@ def process_phrase(spacy_tags, spacy_deps, spacy_pos):
     :param spacy_deps:
     :return:
     """
+
+    def stdev(data):
+        """
+        Calculates standard deviation of a data set. Would rather write it than wazawaza import just for this
+        :param data:
+        :return:
+        """
+        n = len(data)
+        if n == 0 or n == 1:
+            return 0
+
+        else:
+            mean = sum(data) / n
+            dev = [(x - mean) ** 2 for x in data]
+            variance = sum(dev) / n
+            mystdev = variance ** 0.5
+            return mystdev
+
     nom_deps = 0
     NN = 0
     pobj = 0
     s = 0
+    pobjs = []
+    pobj_deps = []
+    prep_pobj = 0
 
     for i in range(0, len(spacy_deps)):
         tag = spacy_tags[i]
         dep = spacy_deps[i]
         pos = spacy_pos[i]
+        word = spacy_words[i]
 
-        if tag in ["NN", "NNP", "NNPS", "NNS"]:
+        if dep in ["nsubj", "nsubjpass", "agent", "ncomp", "dobj", "iobj","pobj"]:
             NN += 1
-            if dep[0] == "n":
-                nom_deps += 1
+
+        if dep in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
+            nom_deps += 1
 
         if dep == "pobj":
             pobj += 1
+            pobjs.append({"word": word, "index": i})
 
-        if dep == "ROOT":
-            s += 1
+    for word in pobjs:
+        counter = 0
+        match = word["word"]
+        id = word["index"]
+        for i in range(0, len(spacy_heads)):
+            head_tok = spacy_heads[i]
+            head = f"{head_tok}"
+            dep = spacy_deps[i]
+            if (head == match) and ((id - i > 10) or (i - id > 10)):
+                if dep in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
+                    counter += 1
+                if dep == "prep":
+                    prep_pobj += 1
+        if counter > 0:
+            pobj_deps.append(counter)
+
+    stdev(pobj_deps)
 
     av_nom_deps_NN = safe_division(nom_deps, NN)
-    Pobj_NN = safe_division(pobj, NN)
-    Pobj_NN_s = safe_division(Pobj_NN, s)
+    Prep_pobj_deps_NN = safe_division(prep_pobj, NN)
+    Pobj_NN_SD = stdev(pobj_deps)
 
-    return {'PC1': av_nom_deps_NN, 'PC2': Pobj_NN_s}
+    return {'PC1': av_nom_deps_NN, 'PC2': Prep_pobj_deps_NN, 'PC3': Pobj_NN_SD}
 
 
 
@@ -373,6 +412,7 @@ def get_scores(filename, spacy_output, wordranks):
     spacy_tags = []
     spacy_deps = []
     spacy_stop = []
+    spacy_heads = []
 
     for idx, token in enumerate(spacy_output):
         spacy_words.append(spacy_output[idx].text)
@@ -381,13 +421,14 @@ def get_scores(filename, spacy_output, wordranks):
         spacy_tags.append(spacy_output[idx].tag_)
         spacy_deps.append(spacy_output[idx].dep_)
         spacy_stop.append(spacy_output[idx].is_stop)
+        spacy_heads.append(spacy_output[idx].head)
 
     word_count = len([token for token in spacy_output if
                       token.is_alpha or token.shape_ == 'dd'])  # dd is spacy's definition for digits.
 
     lexical_results = process_lex(spacy_words, spacy_lemmas, spacy_tags, spacy_stop, wordranks)
     SDM_results = process_sdm(spacy_words, spacy_deps, word_count)
-    phrasal_results = process_phrase(spacy_tags, spacy_deps, spacy_pos)
+    phrasal_results = process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words)
     trad_synt_results = process_syn(spacy_tags, spacy_deps, word_count)
     filename_res = {'filename': filename}
 
