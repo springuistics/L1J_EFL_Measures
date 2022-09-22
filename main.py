@@ -348,10 +348,11 @@ def process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words):
     nom_deps = 0
     NN = 0
     pobj = 0
-    s = 0
     pobjs = []
     pobj_deps = []
+    preps = []
     prep_pobj = 0
+
 
     for i in range(0, len(spacy_deps)):
         tag = spacy_tags[i]
@@ -369,6 +370,9 @@ def process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words):
             pobj += 1
             pobjs.append({"word": word, "index": i})
 
+        if dep == "prep":
+            preps.append({"word": word, "index": i})
+
     for word in pobjs:
         counter = 0
         match = word["word"]
@@ -380,15 +384,20 @@ def process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words):
             if (head == match) and ((id - i > 10) or (i - id > 10)):
                 if dep in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
                     counter += 1
-                if dep == "prep":
-                    prep_pobj += 1
+
         if counter > 0:
             pobj_deps.append(counter)
 
-    stdev(pobj_deps)
+    for items in preps:
+        id = items["index"]
+        for i in range(0, len(spacy_deps)):
+            if id == i:
+                if spacy_deps[i-1] == "pobj":
+                    prep_pobj += 1
+
 
     av_nom_deps_NN = safe_division(nom_deps, NN)
-    Prep_pobj_deps_NN = safe_division(prep_pobj, NN)
+    Prep_pobj_deps_NN = safe_division(prep_pobj, pobj)
     Pobj_NN_SD = stdev(pobj_deps)
 
     return {'PC1': av_nom_deps_NN, 'PC2': Prep_pobj_deps_NN, 'PC3': Pobj_NN_SD}
