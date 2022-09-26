@@ -318,7 +318,7 @@ def process_syn(tag, dep, w):
 
     return {'W': w, 'MLS': mls, 'MLT': mlt, 'C_T': c_t, 'VP_T': vp_t, 'CO_T': co_t, 'DC_T': dc_t, 'CSTR_S': CSTR_s, 'CSTR_T': CSTR_t}
 
-def process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words):
+def process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_children, spacy_lemmas):
     """
     Creates phrasal complexity measurs based on Kyle 2016 and Kyle & Crossley 2018.
     Though Kyle & Crossley (etc) offer a lot of measures, this program just focuses on ones that are indicative of
@@ -352,15 +352,23 @@ def process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words):
     pobj_deps = []
     preps = []
     prep_pobj = 0
-
+    stative_verbs = ["be", "exist", "appear", "feel", "hear", "look", "see", "seem", "belong", "have", "own", "possess", "like", "want", "wish", "prefer", "love", "hate"]
+    satellites =["across", "after", "along", "apart", "around", "about", "away", "back", "down", "under", "in", "into", "off", "on", "onto", "out", "over", "above", "through", "to", "together", "below", "up"]
+    satellite_framings = 0
+    verbs = 0
 
     for i in range(0, len(spacy_deps)):
         tag = spacy_tags[i]
         dep = spacy_deps[i]
         pos = spacy_pos[i]
         word = spacy_words[i]
+        head = spacy_heads[i]
+        head = f'{head}'
 
-        if dep in ["nsubj", "nsubjpass", "agent", "ncomp", "dobj", "iobj","pobj"]:
+        if pos == "VERB":
+            verbs +=1
+
+        if dep in ["nsubj", "nsubjpass", "agent", "ncomp", "dobj", "iobj", "pobj"]:
             NN += 1
 
         if dep in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
@@ -368,25 +376,58 @@ def process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words):
 
         if dep == "pobj":
             pobj += 1
+            tempdesp = []
+            for x in spacy_children[i]:
+                tempdesp.append(f'{x}')
+                for y in range(0, len(spacy_words)):
+                    john = spacy_words[y]
+                    sally = spacy_deps[y]
+                    if john in tempdesp:
+                        if sally == "prep":
+                            prep_pobj += 1
             pobjs.append({"word": word, "index": i})
 
         if dep == "prep":
+            if word in satellites:
+                for y in range(0, i):
+                    word_pos = spacy_pos[y]
+                    word_match = spacy_words[y]
+                    word_lemma = spacy_lemmas[y]
+                    if word_match == head and word_pos == "VERB" and (i-y) < 10:
+                        if word_lemma not in stative_verbs:
+                            satellite_framings += 1
+
             preps.append({"word": word, "index": i})
 
-    for word in pobjs:
-        counter = 0
-        match = word["word"]
-        id = word["index"]
-        for i in range(0, len(spacy_heads)):
-            head_tok = spacy_heads[i]
-            head = f"{head_tok}"
-            dep = spacy_deps[i]
-            if (head == match) and ((id - i > 10) or (i - id > 10)):
-                if dep in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
-                    counter += 1
+        if pos == "ADJ":
+            for y in range(0, i):
+                word_pos = spacy_pos[y]
+                word_match = spacy_words[y]
+                word_lemma = spacy_lemmas[y]
+                if word_match == head and word_pos == "VERB" and (i-y) < 10:
+                    if word_lemma not in stative_verbs:
+                        satellite_framings += 1
+    #for word in pobjs:
+    #    counter = 0
+    #    match = word["word"]
+    #    id = word["index"]
+    #    for x in range(0, len(spacy_deps)):
+    #        if x == id:
 
-        if counter > 0:
-            pobj_deps.append(counter)
+    #    arrayofkids = spacy_children[id]
+    #    for child in arrayofkids:
+    #       head = f"{child}"
+    #        for x in range(0,len(spacy_deps)):
+    #            dep = spacy_deps[x]
+    #            if (head==match)
+
+    #            dep = spacy_deps[i]
+    #            if (head == match) and ((id - i > 10) or (i - id > 10)):
+    #                if dep in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
+    #                    counter += 1
+
+    #    if counter > 0:
+    #        pobj_deps.append(counter)
 
     for items in preps:
         id = items["index"]
@@ -399,8 +440,13 @@ def process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words):
     av_nom_deps_NN = safe_division(nom_deps, NN)
     Prep_pobj_deps_NN = safe_division(prep_pobj, pobj)
     Pobj_NN_SD = stdev(pobj_deps)
+    SF_V = safe_division(satellite_framings, verbs)
+    PrepNo = len(preps)
+    AnotherSF = satellite_framings + prep_pobj
+    AnoSF_V = safe_division(AnotherSF, verbs)
 
-    return {'PC1': av_nom_deps_NN, 'PC2': Prep_pobj_deps_NN, 'PC3': Pobj_NN_SD}
+
+    return {'PC1': av_nom_deps_NN, 'PC2': Prep_pobj_deps_NN, 'PC3': Pobj_NN_SD, 'SFraming': satellite_framings, 'SF_V': SF_V, 'PrepNo': PrepNo, 'SF2': AnotherSF, 'ASF_V': AnoSF_V}
 
 
 
@@ -422,6 +468,7 @@ def get_scores(filename, spacy_output, wordranks):
     spacy_deps = []
     spacy_stop = []
     spacy_heads = []
+    spacy_children = []
 
     for idx, token in enumerate(spacy_output):
         spacy_words.append(spacy_output[idx].text)
@@ -431,13 +478,17 @@ def get_scores(filename, spacy_output, wordranks):
         spacy_deps.append(spacy_output[idx].dep_)
         spacy_stop.append(spacy_output[idx].is_stop)
         spacy_heads.append(spacy_output[idx].head)
+        kids = []
+        for x in spacy_output[idx].children:
+            kids.append(x)
+        spacy_children.append(kids)
 
     word_count = len([token for token in spacy_output if
                       token.is_alpha or token.shape_ == 'dd'])  # dd is spacy's definition for digits.
 
     lexical_results = process_lex(spacy_words, spacy_lemmas, spacy_tags, spacy_stop, wordranks)
     SDM_results = process_sdm(spacy_words, spacy_deps, word_count)
-    phrasal_results = process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words)
+    phrasal_results = process_phrase(spacy_tags, spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_children, spacy_lemmas)
     trad_synt_results = process_syn(spacy_tags, spacy_deps, word_count)
     filename_res = {'filename': filename}
 
