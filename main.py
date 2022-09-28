@@ -1,13 +1,13 @@
 import os
 import sys
 import spacy
-import re
 from collections import Counter
 from pathlib import Path
 import logging
 import csv
 
 logger = logging.getLogger('L1J_EFL_Measures')
+
 
 def safe_division(x, y):
     """
@@ -23,13 +23,13 @@ def safe_division(x, y):
 
 def process_lex(words, lemmas, pos, stop, wordranks):
     """
-    Provides counts of lexical complexity that are predictive of L1 Japanese learners' proficiency, as per (forthcoming).
+    Provides counts of lexical complexity that are predictive of L1 Japanese learners' proficiency, as per (forthcoming)
     Modeled on Lu (2012) and Spring and Johnson (2022)
-    :param spacy_words:
-    :param spacy_lemmas:
-    :param spacy_pos:
-    :param spacy_stop:
-    :param wordranks:
+    :param words: list of words from SpaCy tokens
+    :param lemmas: list of lemma from SpaCy tokens
+    :param pos: list of POS tags from SpaCy tokens
+    :param stop: List of boolean values for whether the word is a 'stop' word as per SpaCy tagging
+    :param wordranks: From COCA corpus
     :return:
     """
     lemmalist = []
@@ -85,8 +85,7 @@ def process_lex(words, lemmas, pos, stop, wordranks):
                     if pos_item[0] == "V":
                         sverbtokens += 1
 
-
-    if words == []:
+    if not words:
         LS = 'error - file could not be read!'
     else:
         LS = safe_division(slextokens, lextokens)
@@ -100,13 +99,13 @@ def process_lex(words, lemmas, pos, stop, wordranks):
 
     return {'LS': LS, 'VS': VS, 'CVS': CVS, 'NDW': NDW, 'CTTR': CTTR, 'SVV': SVV, 'CVV': CVV}
 
-def process_sdm(spacy_words, spacy_deps, word_count):
+
+def process_sdm(spacy_words, spacy_deps):
     """
     Counts number of supporting detail markers (SDMs - see Spring 2023) by creating lists of words and n2~4 grams, and
     comparing these against SDM n~n4 grams. Also provides C2SDM_S and C2SDM_C as per Spring 2023. Uses deps to do this.
-    :param spacy_words:
-    :param spacy_deps:
-    :param word_count:
+    :param spacy_words: word parsed from SpaCy
+    :param spacy_deps: dependencies of said words
     :return:
     """
 
@@ -318,12 +317,12 @@ def process_syn(tag, dep, w):
 
     return {'W': w, 'MLS': mls, 'MLT': mlt, 'C_T': c_t, 'VP_T': vp_t, 'CO_T': co_t, 'DC_T': dc_t, 'CSTR_S': CSTR_s, 'CSTR_T': CSTR_t}
 
+
 def process_phrase(spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_children, spacy_lemmas):
     """
-    Creates phrasal complexity measures based on Kyle 2016 and Kyle & Crossley 2018.
-    Though Kyle & Crossley (etc) offer a lot of measures, this program just focuses on ones that are indicative of
-    L2 proficiency, as per (forthcoming paper)
-    :param spacy_tags:
+    Creates phrasal complexity measures based on Kyle (2016) and Kyle & Crossley (2018).
+    Though TAASSC (Kyle, 2016) offer a lot of measures, this program just focuses on a few that are indicative of
+    L2 proficiency for L1 Japanese EFL learners, as per (forthcoming paper)
     :param spacy_deps:
     :return:
     """
@@ -349,24 +348,35 @@ def process_phrase(spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_childr
         n = len(data)
         if n == 0:
             return 0
-
         else:
             mean = sum(data) / n
             return mean
 
     nom_deps = 0
-    NN_deps = []
-    NN = 0
+    phrase_deps = []
+    phrases = 0
     pobj = 0
-    pobjs = []
     pobj_deps = []
     pobj_prep_deps = []
     preps = []
     prep_pobj = 0
-    stative_verbs = ["be", "exist", "appear", "feel", "hear", "look", "see", "seem", "belong", "have", "own", "possess", "like", "want", "wish", "prefer", "love", "hate"]
-    satellites =["across", "after", "along", "apart", "around", "about", "away", "back", "down", "under", "in", "into", "off", "on", "onto", "out", "over", "above", "through", "to", "together", "below", "up"]
+    prep_pobj2 = 0
+    stative_verbs = ["be", "exist", "appear", "feel", "hear", "look", "see", "seem", "belong", "have", "own", "possess", "like", "want", "wish", "prefer", "love", "hate", "make", "become", "meet"]
+    satellites = ["across", "after", "along", "apart", "around", "about", "away", "back", "down", "under", "in", "into", "off", "on", "onto", "out", "over", "above", "through", "to", "together", "below", "up"]
+    likely_dates = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
     satellite_framings = 0
     verbs = 0
+    list_o_verbs = []
+    list_o_vb_lemmas = []
+
+    for i in range(0, len(spacy_pos)):
+        pos = spacy_pos[i]
+        verb_lemma = spacy_lemmas[i]
+        verb = spacy_words[i]
+        if pos == "VERB":
+            list_o_verbs.append(verb)
+            list_o_vb_lemmas.append(verb_lemma)
+
 
     for i in range(0, len(spacy_deps)):
         dep = spacy_deps[i]
@@ -378,87 +388,104 @@ def process_phrase(spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_childr
         if pos == "VERB":
             verbs += 1
 
-        if dep in ["nsubj", "nsubjpass", "agent", "ncomp", "dobj", "iobj", "pobj"]:
-            NN += 1
+        if dep in ["nsubj", "nsubjpass", "agent", "ncomp", "dobj", "iobj", "pobj"] and pos != "PRON":
+            phrases += 1
             counter = 0
             tempkids = []
             for x in spacy_children[i]:
                 tempkids.append(f'{x}')
-                for y in range(0, len(spacy_deps)):
-                    match_W = spacy_words[y]
-                    find_dep = spacy_deps[y]
-                    if match_W in tempkids:
-                        if find_dep in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
-                            counter += 1
-            NN_deps.append(counter)
-
+            for child in tempkids:
+                    for x in range(0, len(spacy_deps)):
+                        word_match = spacy_words[x]
+                        dep_match = spacy_deps[x]
+                        if word_match == child:
+                            if dep_match in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
+                                counter += 1
+                                break
+            phrase_deps.append(counter)
 
         if dep in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
             nom_deps += 1
 
-        if dep == "pobj":
+        if dep == "pobj" and pos != "PRON":
             pobj += 1
             tempdesp = []
             counter = 0
             counter2 = 0
             for x in spacy_children[i]:
                 tempdesp.append(f'{x}')
-                for y in range(0, len(spacy_deps)):
-                    john = spacy_words[y]
-                    sally = spacy_deps[y]
-                    if john in tempdesp:
-                        if sally in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
-                            counter += 1
-                        if sally == "prep":
-                            prep_pobj += 1
-                            counter2 += 1
-            pobjs.append({"word": word, "index": i})
+            for child in tempdesp:
+                for x in range(0, len(spacy_deps)):
+                        word_match = spacy_words[x]
+                        dep_match = spacy_deps[x]
+                        if word_match == child:
+                            if dep_match in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
+                                counter += 1
+                            if dep_match == "prep":
+                                prep_pobj += 1
+                                counter2 += 1
+                            break
             pobj_deps.append(counter)
             pobj_prep_deps.append(counter2)
 
 
         if dep == "prep":
-            if word in satellites:
-                for y in range(0, i):
-                    word_pos = spacy_pos[y]
-                    word_match = spacy_words[y]
-                    word_lemma = spacy_lemmas[y]
-                    if word_match == head and word_pos == "VERB" and (i-y) < 10:
-                        if word_lemma not in stative_verbs:
-                            satellite_framings += 1
+            preps.append({"word": word, "index": i}) #makes a bank of prepositions for dumb counts, probably delete later if I'm feeling cute
 
-            preps.append({"word": word, "index": i})
+        if pos == "ADJ": #handles adjectives as satellites
+            if head in list_o_verbs:
+                for y in range(0, len(list_o_verbs)):
+                    word_match = list_o_verbs[y]
+                    word_lemma = list_o_vb_lemmas[y]
+                    if word_match == head and word_lemma not in stative_verbs:
+                        x = 0
+                        while x < i:
+                            double_match = spacy_words[x]
+                            if head == double_match:
+                                satellite_framings += 1
+                                break
+                            else:
+                                x += 1
 
-        if pos == "ADJ":
-            for y in range(0, i):
-                word_pos = spacy_pos[y]
-                word_match = spacy_words[y]
-                word_lemma = spacy_lemmas[y]
-                if word_match == head and word_pos == "VERB" and (i-y) < 10:
-                    if word_lemma not in stative_verbs:
+
+        if pos == "ADP" and word in satellites: #handles most satellites
+            if head in satellites:
+                satellite_framings += 1
+            elif head in list_o_verbs:
+                if word in ["in", "into", "on", "onto"]:
+                    if spacy_words[i+1] not in likely_dates and spacy_pos[i+1] != "NUM" and spacy_pos[i+1] != "PROPN":
+                        for y in range(0, len(list_o_verbs)):
+                            word_match = list_o_verbs[y]
+                            word_lemma = list_o_vb_lemmas[y]
+                            if word_match == head and word_lemma not in stative_verbs:
+                                satellite_framings += 1
+                                break
+
+        if pos == "ADV" and word in satellites: #handles particles marked as adverbs as satellites
+            if head in satellites:
+                satellite_framings += 1
+            elif head in list_o_verbs:
+                for y in range(0, len(list_o_verbs)):
+                    word_match = list_o_verbs[y]
+                    word_lemma = list_o_vb_lemmas[y]
+                    if word_match == head and word_lemma not in stative_verbs:
                         satellite_framings += 1
+                        break
 
     for items in preps:
         id = items["index"]
         for i in range(0, len(spacy_deps)):
             if id == i:
-                if spacy_deps[i-1] == "pobj":
-                    prep_pobj += 1
+                if spacy_deps[i-1] == "pobj" and spacy_pos[i-1] != "PRON":
+                    prep_pobj2 += 1
 
+    av_nom_deps_dumb = safe_division(nom_deps, phrases) #no pronouns, divides N of dependents by N of nominals
+    av_nom_deps_NN = safe_avg(phrase_deps) #NN means no pronouns, this actually averages the number of dependents per each nominal
+    Prep_pobj_deps_dumb = safe_division(prep_pobj2, pobj) #no pronouns, just divides number of prepositions preceded directly by pobj by N of pobjs
+    Prep_pobj_deps_NN = safe_avg(pobj_prep_deps) #no pronouns, actoually averages the number of prepositional dependents that each pobj has
+    Pobj_NN_SD = stdev(pobj_deps) #no pronouns, standard deviation of the N of dependents per each pobj
 
-    av_nom_deps_NN = safe_division(nom_deps, NN)
-    av_nom_deps_2 = safe_avg(NN_deps)
-    Prep_pobj_deps_NN = safe_division(prep_pobj, pobj)
-    Prep_pobj_deps_2 = safe_avg(pobj_prep_deps)
-    Av_pobj_deps = safe_avg(pobj_deps)
-    Pobj_NN_SD = stdev(pobj_deps)
-    AnotherSF = satellite_framings + prep_pobj
-
-
-
-    return {'PC1': av_nom_deps_NN, 'PC1.5': av_nom_deps_2, 'PC2': Prep_pobj_deps_NN, 'PC2.5': Prep_pobj_deps_2, 'PC3': Pobj_NN_SD, 'SFraming': satellite_framings, 'SF2': AnotherSF}
-
-
+    return {'PC1': av_nom_deps_NN, 'PC2': Prep_pobj_deps_NN, 'PC3': Pobj_NN_SD, 'SFraming': satellite_framings}
 
 
 def get_scores(filename, spacy_output, wordranks):
@@ -467,8 +494,9 @@ def get_scores(filename, spacy_output, wordranks):
     Scores come from a culmination of Lu 2010, 2012, Spring 2023, and Kyle and Crossley 2018
     Only scores that are relevant for a large majority of L1 Japanese EFL learners are selected from the above
     (see forthcoming paper)
-    :param spacy_output:
-    :param wordranks:
+    :param filename: passes in the file name
+    :param spacy_output: the tokenized information provided by SpaCy
+    :param wordranks: from COCA corpus
     :return:
     """
     spacy_words = []
@@ -497,7 +525,7 @@ def get_scores(filename, spacy_output, wordranks):
                       token.is_alpha or token.shape_ == 'dd'])  # dd is spacy's definition for digits.
 
     lexical_results = process_lex(spacy_words, spacy_lemmas, spacy_tags, spacy_stop, wordranks)
-    SDM_results = process_sdm(spacy_words, spacy_deps, word_count)
+    SDM_results = process_sdm(spacy_words, spacy_deps)
     phrasal_results = process_phrase(spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_children, spacy_lemmas)
     trad_synt_results = process_syn(spacy_tags, spacy_deps, word_count)
     filename_res = {'filename': filename}
@@ -509,9 +537,9 @@ def write_header_and_data_to_file(header, data, output_filename):
     """
 
     :type header - a string.
-    :param header:
+    :param header: All the names of the variables from various types of analyzers
     :type data - list of strings.
-    :param data:
+    :param data: The scores of the variables from the various analyzers
     :param output_filename:
     :return:
     """
@@ -573,9 +601,9 @@ def process(file_path: str, filename, wordranks):
     """
     Simply preps files by sending files to get read and handling encoding errors.
     Also gets singular analysis from SpaCy, then sends to a score getter.
-    :param file_path:
-    :param ac: just taken from SDM list (see Spring 2023)
-    :param wordranks: read once from common words list (see Spring & Johnson 2022)
+    :param file_path: path of file
+    :param filename: actual file name
+    :param wordranks: read once from common words list taken from COCA corpus (see Spring & Johnson 2022)
     :return:
     """
     text_lines = read_input_text(file_path)
@@ -593,7 +621,7 @@ def process(file_path: str, filename, wordranks):
 
 def write_header_and_data_to_file(header, data, output_filename):
     """
-
+    Based on original function in Lu (2010, 2012), later modified in Spring & Johnson (2022)
     :type header - a string.
     :param header:
     :type data - list of strings.
@@ -609,6 +637,7 @@ def write_header_and_data_to_file(header, data, output_filename):
         for d in data:
             output_file.write(d)
     logger.info(f'{len(data)} lines of output written to: {output_filename}.')
+
 
 def build_header(scores):
     header = ''
@@ -659,7 +688,6 @@ def main(input_path):
         if filename.endswith('.txt'):
             result = process(os.path.join(input_filepath, filename), filename, wordranks)
             scores.append(result)
-
 
     header = build_header(scores)
     string_scores = list_stringify_scores(scores)
