@@ -117,7 +117,7 @@ def process_sdm(spacy_words, spacy_deps):
            "meaning", "misinterpret", "misinterprets", "misinterpreting", "because", "since", "therefore", "cause",
            "causes", "yield", "yields", "moreover", "futhermore", "however", "although", "nevertheless", "yet",
            "though", "either", "instead", "if", "without", "specifically", "additionally", "consequently"]
-    ac2 = ["in addition", "caused by", "for one", "in addition", "for instance", "for example", "regarded as",
+    ac2 = ["in addition", "caused by", "for one", "for instance", "for example", "regarded as",
            "seeing that", "leads to", "lead to", "leading to", "divided into", "fall into", "falls into",
            "falling into", "considered as", "this implies", "this suggests", "brings about", "bring about",
            "brought about", "bringing about", "due to", "based on", "so that", "such as", "into account", "points to",
@@ -128,7 +128,7 @@ def process_sdm(spacy_words, spacy_deps):
            "the reason for", "the reason why", "in this respect", "in spite of", "so as to", "factors of this",
            "a number of", "matter of fact", "in other words", "in respect to"]
     ac4 = ["at the same time", "it turns out that", "for the purpose of", "on the other hand", "it should be noted",
-           "in the case that", "can be seen by", "at the same time"]
+           "in the case that", "can be seen by"]
 
     for word in range((len(spacy_words) - 1)):
         temp = [spacy_words[j] for j in range(word, word + 2)]
