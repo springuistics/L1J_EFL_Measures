@@ -320,9 +320,12 @@ def process_syn(tag, dep, w):
 
 def process_phrase(spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_children, spacy_lemmas):
     """
-    Creates phrasal complexity measures based on Kyle (2016) and Kyle & Crossley (2018).
-    Though TAASSC (Kyle, 2016) offer a lot of measures, this program just focuses on a few that are indicative of
-    L2 proficiency for L1 Japanese EFL learners, as per (forthcoming paper)
+    Creates phrasal complexity measures based on Kyle (2016) and Kyle & Crossley (2018). Specifically, going after
+    Av_nom_deps_NN, Prep_pobj_deps_NN, and Pobj_NN_SD (as of 10/14/2022) because though TAASSC (Kyle, 2016) offer a lot
+    of measures, this program just focuses on a few that are indicative of L2 proficiency for L1 Japanese EFL learners,
+    and so far these are consistently correlated with both as per (forthcoming paper). The NN means that pronouns and
+    proper nouns are discluded from the counts.
+    Also, does a rough calculation of Satellite-Framing, which can be considered a type of phrasal complexity.
     :param spacy_deps:
     :return:
     """
@@ -340,7 +343,7 @@ def process_phrase(spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_childr
         else:
             mean = sum(data) / n
             dev = [(x - mean) ** 2 for x in data]
-            variance = sum(dev) / n
+            variance = sum(dev) / (n - 1)
             mystdev = variance ** 0.5
             return mystdev
 
@@ -361,9 +364,17 @@ def process_phrase(spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_childr
     preps = []
     prep_pobj = 0
     prep_pobj2 = 0
-    stative_verbs = ["be", "exist", "appear", "feel", "hear", "look", "see", "seem", "belong", "have", "own", "possess", "like", "want", "wish", "prefer", "love", "hate", "make", "become", "meet"]
-    satellites = ["across", "after", "along", "apart", "around", "about", "away", "back", "down", "under", "in", "into", "off", "on", "onto", "out", "over", "above", "through", "to", "together", "below", "up"]
-    likely_dates = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    stative_verbs = ["be", "exist", "appear", "feel", "hear", "look", "see", "seem", "belong", "have", "own", "possess",
+                     "like", "live", "want", "wish", "prefer", "love", "hate", "make", "become", "meet", "depend",
+                     "fit", "touch", "matter", "lay", "lie", "find"]
+    satellites = ["aboard", "above", "across", "after", "against", "ahead", "along", "amid", "among",
+                  "amongst", "around", "aside", "away", "back", "before", "behind", "below", "beneath", "beside",
+                  "between", "beyond", "down", "in", "inside", "into", "near", "off", "on", "onto", "opposite",
+                  "out", "outside", "over", "past", "through", "toward", "towards", "together", "under",
+                  "underneath", "up", "upon"]
+    likely_dates = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+                    "November", "December", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday",
+                    "Sunday"]
     satellite_framings = 0
     verbs = 0
     list_o_verbs = []
@@ -388,26 +399,23 @@ def process_phrase(spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_childr
         if pos == "VERB":
             verbs += 1
 
-        if dep in ["nsubj", "nsubjpass", "agent", "ncomp", "dobj", "iobj", "pobj"] and pos != "PRON":
+        if dep in ["nsubj", "nsubjpass", "agent", "ncomp", "dobj", "iobj", "pobj"] and pos == "NOUN":
             phrases += 1
             counter = 0
             tempkids = []
             for x in spacy_children[i]:
                 tempkids.append(f'{x}')
             for child in tempkids:
-                    for x in range(0, len(spacy_deps)):
-                        word_match = spacy_words[x]
-                        dep_match = spacy_deps[x]
-                        if word_match == child:
-                            if dep_match in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
-                                counter += 1
-                                break
+                for x in range(0, len(spacy_deps)):
+                    word_match = spacy_words[x]
+                    dep_match = spacy_deps[x]
+                    if word_match == child:
+                        if dep_match in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
+                            counter += 1
+                            break
             phrase_deps.append(counter)
 
-        if dep in ["det", "amod", "prep", "poss", "vmod", "nn", "rcmod", "advmod", "conj_and", "conj_or"]:
-            nom_deps += 1
-
-        if dep == "pobj" and pos != "PRON":
+        if dep == "pobj" and pos == "NOUN":
             pobj += 1
             tempdesp = []
             counter = 0
@@ -427,10 +435,6 @@ def process_phrase(spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_childr
                             break
             pobj_deps.append(counter)
             pobj_prep_deps.append(counter2)
-
-
-        if dep == "prep":
-            preps.append({"word": word, "index": i}) #makes a bank of prepositions for dumb counts, probably delete later if I'm feeling cute
 
         if pos == "ADJ": #handles adjectives as satellites
             if head in list_o_verbs:
@@ -472,18 +476,10 @@ def process_phrase(spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_childr
                         satellite_framings += 1
                         break
 
-    for items in preps:
-        id = items["index"]
-        for i in range(0, len(spacy_deps)):
-            if id == i:
-                if spacy_deps[i-1] == "pobj" and spacy_pos[i-1] != "PRON":
-                    prep_pobj2 += 1
 
-    av_nom_deps_dumb = safe_division(nom_deps, phrases) #no pronouns, divides N of dependents by N of nominals
-    av_nom_deps_NN = safe_avg(phrase_deps) #NN means no pronouns, this actually averages the number of dependents per each nominal
-    Prep_pobj_deps_dumb = safe_division(prep_pobj2, pobj) #no pronouns, just divides number of prepositions preceded directly by pobj by N of pobjs
-    Prep_pobj_deps_NN = safe_avg(pobj_prep_deps) #no pronouns, actoually averages the number of prepositional dependents that each pobj has
-    Pobj_NN_SD = stdev(pobj_deps) #no pronouns, standard deviation of the N of dependents per each pobj
+    av_nom_deps_NN = safe_avg(phrase_deps)
+    Prep_pobj_deps_NN = safe_avg(pobj_prep_deps)
+    Pobj_NN_SD = stdev(pobj_deps)
 
     return {'PC1': av_nom_deps_NN, 'PC2': Prep_pobj_deps_NN, 'PC3': Pobj_NN_SD, 'SFraming': satellite_framings}
 
