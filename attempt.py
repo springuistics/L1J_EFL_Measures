@@ -32,8 +32,8 @@ from PIL import Image, ImageTk
 m = tkinter.Tk()
 m.configure(bg="#97d5e8")
 m.title('L1 Japanese EFL Measures of Productive Skill Analyzer')
-m.minsize(800, 660)
-m.maxsize(800, 660)
+m.minsize(800, 700)
+m.maxsize(800, 700)
 
 input_p = tkinter.StringVar()
 output_p = tkinter.StringVar()
@@ -78,7 +78,7 @@ def change_lj():
     pro_button.config(text='開始')
 
 bigframe = tkinter.Frame(m, background="#97d5e8")
-logo = Image.open("Logo.jpg")
+logo = Image.open("Logo2.jpg")
 logoimg = ImageTk.PhotoImage(logo)
 logo_label = tkinter.Label(m, image=logoimg)
 logo_label.image = logoimg
@@ -129,7 +129,7 @@ pro_button.pack(side=tkinter.BOTTOM)
 
 bigframe.pack()
 
-progress_bar = tkinter.Label(m, text=" ")
+progress_bar = tkinter.Label(m, background="#97d5e8", text=" ")
 progress_bar.pack()
 
 m.mainloop()
