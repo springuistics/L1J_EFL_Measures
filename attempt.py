@@ -9,7 +9,6 @@ from main import write_header_and_data_to_file
 logger = logging.getLogger('L1J_EFL_Measures')
 
 def main(input_path, output_file):
-    progress_bar.config(text="Processing")
     input_filepath = os.path.join(os.getcwd(), input_path)
     wordranks = read_coca_frequent_data()
 
@@ -49,6 +48,7 @@ def browse_output_folder():
     output_p.set(filepath)
 
 def doit():
+    progress_bar.config(text="Processing")
     input = input_p.get()
     output = output_p.get()
     filename = output_f.get()

@@ -90,6 +90,33 @@ def process_lex(words, lemmas, pos, stop, wordranks):
     else:
         LS = safe_division(slextokens, lextokens)
 
+    w_count = len(lemmas)
+    msttr = 0
+    if w_count < 12:
+        msttr = safe_division(wordtypes, wordtokens)
+    else:
+        z = 11
+        dumbcount = 0
+        while z <= w_count:
+            dumbcount += 1
+            templist = []
+            tempwordtypes = 0
+            tempwordtokens = 0
+            for i in range(z-11, z):
+                templemma = lemmas[i]
+                temppos_item = pos[i]
+                if temppos_item not in ["PUNCT", "SYM", "X", "SPACE", ".", ",", "!", "?", ":", ";", "-", " ", "¥n"]:
+                    if templemma not in templist:
+                        tempwordtypes += 1
+                        tempwordtokens += 1
+                        templist.append(templemma)
+
+                    else:
+                        tempwordtokens += 1
+            tempmsttr = safe_division(tempwordtypes, tempwordtokens)
+            msttr = ((msttr * (dumbcount-1)) + tempmsttr) / dumbcount
+            z += 1
+
     VS = safe_division((sverbtypes ** 2), verbtokens)
     CVS = safe_division(sverbtypes, ((2 * verbtokens) ** 0.5))
     NDW = wordtypes
@@ -97,7 +124,7 @@ def process_lex(words, lemmas, pos, stop, wordranks):
     SVV = safe_division((verbtypes ** 2), verbtokens)
     CVV = safe_division(verbtypes, ((2 * verbtokens) ** 0.5))
 
-    return {'LS': LS, 'VS': VS, 'CVS': CVS, 'NDW': NDW, 'CTTR': CTTR, 'SVV': SVV, 'CVV': CVV}
+    return {'LS': LS, 'VS': VS, 'CVS': CVS, 'NDW': NDW, 'CTTR': CTTR, 'SVV': SVV, 'CVV': CVV, 'MSTTR11': msttr}
 
 
 def process_sdm(spacy_words, spacy_deps):
@@ -280,7 +307,7 @@ def process_syn(tag, dep, w):
 
     # compute the additional syntactic complexity indices
     clause = nsubj + nsubjpass + csubj + csubjpass
-    T = clause - (adverbclause + relcl + acl)
+    T = s + ccomp
     VP = ccomp + clause
     passives = nsubjpass + csubjpass
     allmod = nmod + omod
@@ -456,14 +483,22 @@ def process_phrase(spacy_deps, spacy_pos, spacy_heads, spacy_words, spacy_childr
             if head in satellites:
                 satellite_framings += 1
             elif head in list_o_verbs:
-                if word in ["in", "into", "on", "onto"]:
-                    if spacy_words[i+1] not in likely_dates and spacy_pos[i+1] != "NUM" and spacy_pos[i+1] != "PROPN":
-                        for y in range(0, len(list_o_verbs)):
-                            word_match = list_o_verbs[y]
-                            word_lemma = list_o_vb_lemmas[y]
-                            if word_match == head and word_lemma not in stative_verbs:
-                                satellite_framings += 1
-                                break
+                if i < (len(spacy_words) - 1):
+                    if word in ["in", "into", "on", "onto"]:
+                        if spacy_words[i+1] not in likely_dates and spacy_pos[i+1] != "NUM" and spacy_pos[i+1] != "PROPN":
+                            for y in range(0, len(list_o_verbs)):
+                                word_match = list_o_verbs[y]
+                                word_lemma = list_o_vb_lemmas[y]
+                                if word_match == head and word_lemma not in stative_verbs:
+                                    satellite_framings += 1
+                                    break
+                else:
+                    for y in range(0, len(list_o_verbs)):
+                        word_match = list_o_verbs[y]
+                        word_lemma = list_o_vb_lemmas[y]
+                        if word_match == head and word_lemma not in stative_verbs:
+                            satellite_framings += 1
+                            break
 
         if pos == "ADV" and word in satellites: #handles particles marked as adverbs as satellites
             if head in satellites:
